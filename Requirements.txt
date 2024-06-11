@@ -1,7 +1,7 @@
-streamlit
-pandas
-networkx
-plotly
-nltk
-textblob
-scikit-learn
+streamlit==1.20.0
+pandas==1.5.3
+networkx==2.6.3
+plotly==5.9.0
+nltk==3.7
+textblob==0.17.1
+scikit-learn==1.1.3
