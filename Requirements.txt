@@ -1,6 +1,6 @@
 streamlit
 pandas
-networkx
+networkx==2.6.3
 plotly
 nltk
 textblob
