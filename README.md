@@ -20,3 +20,6 @@ This Streamlit app allows you to upload customer review data, visualize it as an
    ```bash
    git clone https://github.com/skappal7/clusterntwrkgraph.git
    cd review-network-graph
+
+### Author
+Sunil Kappal
