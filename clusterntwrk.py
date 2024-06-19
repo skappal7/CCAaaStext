@@ -8,6 +8,9 @@ import plotly.graph_objects as go
 
 # Function to preprocess data
 def preprocess_data(data):
+    # Convert content to strings and fill NaNs with empty strings
+    data['content'] = data['content'].astype(str).fillna('')
+    
     # Add Sentiment Score
     data['sentiment_score'] = data['content'].apply(lambda x: TextBlob(x).sentiment.polarity)
     
