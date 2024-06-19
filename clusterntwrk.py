@@ -46,11 +46,18 @@ def create_network_graph(data):
         keywords = row['keywords'].split(', ')
         for word in keywords:
             if not G.has_node(word):
-                G.add_node(word, size=row['sentiment_score']*100, sentiment=row['sentiment_score'])
+                try:
+                    size = row['sentiment_score'] * 100
+                    G.add_node(word, size=size, sentiment=row['sentiment_score'])
+                except Exception as e:
+                    st.write(f"Error adding node {word}: {e}")
             for other_word in keywords:
                 if word != other_word:
                     if not G.has_edge(word, other_word):
-                        G.add_edge(word, other_word, weight=row['sentiment_score'])
+                        try:
+                            G.add_edge(word, other_word, weight=row['sentiment_score'])
+                        except Exception as e:
+                            st.write(f"Error adding edge {word} - {other_word}: {e}")
 
     pos = nx.spring_layout(G)
     edge_x = []
