@@ -38,7 +38,7 @@ def preprocess_data(data):
     return data
 
 # Function to create network graph
-def create_network_graph(data):
+def create_network_graph(data, size_multiplier):
     G = nx.Graph()
 
     # Add nodes and edges based on topics and keywords
@@ -47,7 +47,7 @@ def create_network_graph(data):
         for word in keywords:
             if not G.has_node(word):
                 try:
-                    size = row['sentiment_score'] * 100
+                    size = row['sentiment_score'] * size_multiplier
                     G.add_node(word, size=size, sentiment=row['sentiment_score'])
                 except Exception as e:
                     st.write(f"Error adding node {word}: {e}")
@@ -132,6 +132,9 @@ st.write("Upload your review data in CSV format with 'reviewId', 'Date', and 'co
 
 uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
+# Add a slider for node size multiplier
+size_multiplier = st.slider("Node Size Multiplier", min_value=1, max_value=500, value=100)
+
 if uploaded_file is not None:
     try:
         data = pd.read_csv(uploaded_file)
@@ -139,7 +142,7 @@ if uploaded_file is not None:
         # Check for mandatory columns
         if all(column in data.columns for column in ['reviewId', 'Date', 'content']):
             data = preprocess_data(data)
-            fig = create_network_graph(data)
+            fig = create_network_graph(data, size_multiplier)
             st.plotly_chart(fig)
         else:
             st.error("CSV file must contain 'reviewId', 'Date', and 'content' columns.")
