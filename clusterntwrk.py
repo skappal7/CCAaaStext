@@ -1,22 +1,22 @@
 import streamlit as st
 import pandas as pd
-from textblob import TextBlob
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
 import networkx as nx
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
+from textblob import TextBlob
 import nltk
+import base64
 
 # Set the page configuration first
 st.set_page_config(layout="wide")
 
 # Download necessary NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
+nltk.download('punkt', quiet=True)
+nltk.download('stopwords', quiet=True)
 
-# Custom CSS for styling
+# Custom CSS for styling (unchanged)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
@@ -47,7 +47,7 @@ st.markdown("""
 # Function to preprocess text
 def preprocess_text(text):
     tokens = word_tokenize(text.lower())
-    stop_words = set(stopwords.words('english')).union(set(['and', 'or', 'but', 'if', 'also', 'yhis', 'yrs', 'because', 'ca', 'would', 'let', 'abt', 'ac', 'the', 'a', 'an', 'in', 'on', 'at', 'to', 'with', 'is', 'are', 'was', 'were', 'of', 'for']))
+    stop_words = set(stopwords.words('english')).union(set(['and', 'or', 'but', 'if','also','yhis','yrs', 'because', 'ca','would','let','abt','ac','the', 'a', 'an', 'in', 'on', 'at', 'to', 'with', 'is', 'are', 'was', 'were', 'of', 'for']))
     tokens = [word for word in tokens if word.isalnum() and word not in stop_words]
     return tokens
 
@@ -65,93 +65,89 @@ def sentiment_icon(sentiment):
     else:
         return "😐"
 
-# Function to preprocess data
-def preprocess_data(data):
-    # Convert content to strings and fill NaNs with empty strings
-    data['content'] = data['content'].astype(str).fillna('')
-    
-    # Add Sentiment Score
-    data['sentiment_score'] = data['content'].apply(sentiment_analysis)
-    
-    # Perform Topic Modeling
-    vectorizer = CountVectorizer(stop_words='english', max_features=1000)
-    X = vectorizer.fit_transform(data['content'])
-    lda = LatentDirichletAllocation(n_components=5, random_state=42)
-    lda.fit(X)
-    
-    # Assign Topics
-    topic_labels = ['Topic 1', 'Topic 2', 'Topic 3', 'Topic 4', 'Topic 5']
-    data['topic'] = lda.transform(X).argmax(axis=1)
-    data['topic'] = data['topic'].apply(lambda x: topic_labels[x])
-    
-    # Extract Keywords
-    top_n_words = 5
-    def extract_keywords(text, n=top_n_words):
-        vectorizer = CountVectorizer(stop_words='english', max_features=n)
-        X = vectorizer.fit_transform([text])
-        keywords = vectorizer.get_feature_names_out()
-        return ', '.join(keywords)
+# Function to calculate trend data
+def calculate_trend(word, reviews):
+    word_reviews = reviews[reviews['tokens'].apply(lambda x: word in x)]
+    trend_data = word_reviews.groupby('Date')['sentiment'].mean().reset_index()
+    trend_data['count'] = word_reviews.groupby('Date').size().values
+    return trend_data
 
-    data['keywords'] = data['content'].apply(lambda x: extract_keywords(x))
+# Function to create trend image
+def create_trend_image(trend_data):
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[0.7, 0.3])
     
-    return data
+    fig.add_trace(go.Scatter(x=trend_data['Date'], y=trend_data['sentiment'], mode='lines+markers', name='Sentiment'), row=1, col=1)
+    fig.add_trace(go.Bar(x=trend_data['Date'], y=trend_data['count'], name='Count'), row=2, col=1)
+    
+    fig.update_layout(height=300, width=400, title_text="Word Trend", showlegend=False)
+    fig.update_xaxes(title_text="Date", row=2, col=1)
+    fig.update_yaxes(title_text="Sentiment", row=1, col=1)
+    fig.update_yaxes(title_text="Count", row=2, col=1)
+    
+    img_bytes = fig.to_image(format="png")
+    encoding = base64.b64encode(img_bytes).decode()
+    return encoding
 
-# Function to create network graph
-def create_network_graph(data, keyword=None, min_occurrence=1, size_multiplier=100):
+# Function to create a network graph
+def create_network_graph(reviews_tokens, keyword=None, min_occurrence=1):
     G = nx.Graph()
-
-    # Add nodes and edges based on topics and keywords
     word_counts = {}
     word_sentiments = {}
 
-    for i, row in data.iterrows():
-        tokens = preprocess_text(row['content'])
+    for tokens, sentiment in reviews_tokens:
         for word in tokens:
             if word not in word_counts:
                 word_counts[word] = 0
                 word_sentiments[word] = []
             word_counts[word] += 1
-            word_sentiments[word].append(row['sentiment_score'])
-        
-        for j in range(len(tokens)):
-            for k in range(j + 1, len(tokens)):
-                if (keyword is None or keyword == "All" or tokens[j] == keyword or tokens[k] == keyword) and word_counts[tokens[j]] >= min_occurrence and word_counts[tokens[k]] >= min_occurrence:
-                    G.add_edge(tokens[j], tokens[k])
+            word_sentiments[word].append(sentiment)
+
+    for tokens in reviews_tokens:
+        for i in range(len(tokens[0])):
+            for j in range(i + 1, len(tokens[0])):
+                if (keyword is None or keyword == "All" or tokens[0][i] == keyword or tokens[0][j] == keyword) and word_counts[tokens[0][i]] >= min_occurrence and word_counts[tokens[0][j]] >= min_occurrence:
+                    G.add_edge(tokens[0][i], tokens[0][j])
 
     for word in word_counts:
         if word in G and word_counts[word] >= min_occurrence:
             avg_sentiment = sum(word_sentiments[word]) / len(word_sentiments[word])
-            G.nodes[word]['size'] = word_counts[word] * size_multiplier
+            G.nodes[word]['size'] = word_counts[word]
             G.nodes[word]['sentiment'] = avg_sentiment
             G.nodes[word]['icon'] = sentiment_icon(avg_sentiment)
 
     return G
 
-# Streamlit app layout
-st.title("Customer Reviews Network Graph")
-st.write("Upload your review data in CSV format with 'reviewId', 'Date', and 'content' columns as mandatory.")
+# Function to filter reviews by sentiment
+def filter_reviews_by_sentiment(reviews, sentiment):
+    if sentiment == "Positive":
+        return reviews[reviews['sentiment'] > 0.1]
+    elif sentiment == "Negative":
+        return reviews[reviews['sentiment'] < -0.1]
+    else:
+        return reviews[(reviews['sentiment'] >= -0.1) & (reviews['sentiment'] <= 0.1)]
 
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+# Streamlit UI
+st.title("Customer Reviews Network Graph")
 
 with st.sidebar:
     st.header("Controls")
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+
     if uploaded_file is not None:
         reviews = pd.read_csv(uploaded_file)
-        reviews['tokens'] = reviews['content'].apply(preprocess_text)
-        reviews['sentiment'] = reviews['content'].apply(sentiment_analysis)
-        
+        reviews['tokens'] = reviews['Text'].apply(preprocess_text)
+        reviews['sentiment'] = reviews['Text'].apply(sentiment_analysis)
+        reviews['Date'] = pd.to_datetime(reviews['Date'])  # Ensure 'Date' column is datetime
         sentiment_filter = st.selectbox("Select Sentiment", ["All", "Positive", "Negative", "Neutral"])
         keyword_options = ["All"] + sorted(set(word for tokens in reviews['tokens'] for word in tokens if word.isalpha()))
         keyword = st.selectbox("Select Keyword", keyword_options)
-        node_size_scale = st.slider("Adjust Node Size", min_value=1, max_value=500, value=100)
+        node_size_scale = st.slider("Adjust Node Size", min_value=1, max_value=20, value=10)
         min_occurrence = st.slider("Minimum Word Occurrence", min_value=1, max_value=20, value=1)
         page_size = st.slider("Page Size", min_value=5, max_value=50, value=10)
 
         # Filter reviews by sentiment
         if sentiment_filter != "All":
-            reviews = reviews[reviews['sentiment'].apply(lambda x: (x > 0.1 and sentiment_filter == "Positive") or 
-                                                             (x < -0.1 and sentiment_filter == "Negative") or 
-                                                             (-0.1 <= x <= 0.1 and sentiment_filter == "Neutral"))]
+            reviews = filter_reviews_by_sentiment(reviews, sentiment_filter)
 
 # Display the review table with pagination
 if uploaded_file is not None:
@@ -161,7 +157,8 @@ if uploaded_file is not None:
     st.write(reviews.iloc[start_index:end_index])
 
     # Create network graph
-    G = create_network_graph(reviews, keyword, min_occurrence, node_size_scale)
+    reviews_tokens = list(zip(reviews['tokens'], reviews['sentiment']))
+    G = create_network_graph(reviews_tokens, keyword, min_occurrence)
     pos = nx.spring_layout(G)
 
     # Create Plotly figure
@@ -188,6 +185,7 @@ if uploaded_file is not None:
     node_text = []
     node_size = []
     node_color = []
+    hover_data = []
 
     accent_colors = ['#06516F', '#0098DB', '#FAAF3B', '#333333', '#979797']
 
@@ -195,8 +193,10 @@ if uploaded_file is not None:
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
-        node_text.append(f"{node}<br>Count: {G.nodes[node]['size']}<br>{G.nodes[node]['icon']}")
-        node_size.append(G.nodes[node]['size'])
+        trend_data = calculate_trend(node, reviews)
+        trend_image = create_trend_image(trend_data)
+        hover_data.append(f"<b>{node}</b><br>Count: {G.nodes[node]['size']}<br>{G.nodes[node]['icon']}<br><img src='data:image/png;base64,{trend_image}'>")
+        node_size.append(G.nodes[node]['size'] * node_size_scale)
         sentiment = G.nodes[node]['sentiment']
         if sentiment > 0.1:
             node_color.append('green')
@@ -210,6 +210,8 @@ if uploaded_file is not None:
         mode='markers+text',
         textposition="bottom center",
         hoverinfo='text',
+        text=hover_data,
+        hovertemplate='%{text}',
         marker=dict(
             showscale=True,
             colorscale=accent_colors,
@@ -224,30 +226,25 @@ if uploaded_file is not None:
             ),
             line_width=2))
 
-    hover_text = go.Scatter(
-        x=node_x, y=node_y,
-        mode='markers',
-        text=node_text,
-        hoverinfo='text',
-        marker=dict(
-            size=node_size,
-            opacity=0
-        ))
-
-    fig = go.Figure(data=[edge_trace, node_trace, hover_text],
+    fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(
                         title='Network graph of customer reviews',
                         titlefont_size=16,
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=20, l=5, r=5, t=40),
-                        xaxis=dict(showgrid=False, zeroline=False),
-                        yaxis=dict(showgrid=False, zeroline=False))
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
 
     fig.update_layout(
         dragmode='zoom',  # Enable zoom
-        clickmode='event+select'
+        clickmode='event+select',
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Rockwell"
+        )
     )
 
     st.plotly_chart(fig)
