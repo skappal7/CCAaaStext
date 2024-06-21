@@ -177,13 +177,12 @@ if uploaded_file is not None:
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        selected_point = plotly_events(fig, click_event=True)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("Word Trend")
-        if selected_point:
-            selected_word = list(G.nodes())[selected_point[0]['pointIndex']]
+        selected_word = st.selectbox("Select a word to view its trend", list(G.nodes()))
+        if selected_word:
             trend_data = calculate_word_frequency_trend(reviews, selected_word)
             
             # Create trend chart
@@ -193,8 +192,6 @@ if uploaded_file is not None:
 
             # Display trend data as a table
             st.write(trend_data)
-        else:
-            st.write("Click on a node in the graph to view its trend.")
 
     # Sentiment distribution
     positive_reviews = reviews[reviews['sentiment'] > 0.1].shape[0]
