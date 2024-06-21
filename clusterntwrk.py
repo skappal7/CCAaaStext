@@ -2,12 +2,10 @@ import streamlit as st
 import pandas as pd
 import networkx as nx
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from textblob import TextBlob
 import nltk
-import base64
 
 # Set the page configuration first
 st.set_page_config(layout="wide")
@@ -72,21 +70,13 @@ def calculate_trend(word, reviews):
     trend_data['count'] = word_reviews.groupby('Date').size().values
     return trend_data
 
-# Function to create trend image
-def create_trend_image(trend_data):
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[0.7, 0.3])
-    
-    fig.add_trace(go.Scatter(x=trend_data['Date'], y=trend_data['sentiment'], mode='lines+markers', name='Sentiment'), row=1, col=1)
-    fig.add_trace(go.Bar(x=trend_data['Date'], y=trend_data['count'], name='Count'), row=2, col=1)
-    
-    fig.update_layout(height=300, width=400, title_text="Word Trend", showlegend=False)
-    fig.update_xaxes(title_text="Date", row=2, col=1)
-    fig.update_yaxes(title_text="Sentiment", row=1, col=1)
-    fig.update_yaxes(title_text="Count", row=2, col=1)
-    
-    img_bytes = fig.to_image(format="png")
-    encoding = base64.b64encode(img_bytes).decode()
-    return encoding
+# Function to create trend text
+def create_trend_text(trend_data):
+    trend_text = "Date | Sentiment | Count\n"
+    trend_text += "---|---|---\n"
+    for _, row in trend_data.iterrows():
+        trend_text += f"{row['Date'].strftime('%Y-%m-%d')} | {row['sentiment']:.2f} | {row['count']}\n"
+    return trend_text
 
 # Function to create a network graph
 def create_network_graph(reviews_tokens, keyword=None, min_occurrence=1):
@@ -194,8 +184,8 @@ if uploaded_file is not None:
         node_x.append(x)
         node_y.append(y)
         trend_data = calculate_trend(node, reviews)
-        trend_image = create_trend_image(trend_data)
-        hover_data.append(f"<b>{node}</b><br>Count: {G.nodes[node]['size']}<br>{G.nodes[node]['icon']}<br><img src='data:image/png;base64,{trend_image}'>")
+        trend_text = create_trend_text(trend_data)
+        hover_data.append(f"<b>{node}</b><br>Count: {G.nodes[node]['size']}<br>{G.nodes[node]['icon']}<br><pre>{trend_text}</pre>")
         node_size.append(G.nodes[node]['size'] * node_size_scale)
         sentiment = G.nodes[node]['sentiment']
         if sentiment > 0.1:
