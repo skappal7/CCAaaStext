@@ -70,14 +70,6 @@ def calculate_trend(word, reviews):
     trend_data['count'] = word_reviews.groupby('Date').size().values
     return trend_data
 
-# Function to create trend text
-def create_trend_text(trend_data):
-    trend_text = "Date | Sentiment | Count\n"
-    trend_text += "---|---|---\n"
-    for _, row in trend_data.iterrows():
-        trend_text += f"{row['Date'].strftime('%Y-%m-%d')} | {row['sentiment']:.2f} | {row['count']}\n"
-    return trend_text
-
 # Function to create a network graph
 def create_network_graph(reviews_tokens, keyword=None, min_occurrence=1):
     G = nx.Graph()
@@ -175,7 +167,7 @@ if uploaded_file is not None:
     node_text = []
     node_size = []
     node_color = []
-    hover_data = []
+    custom_data = []
 
     accent_colors = ['#06516F', '#0098DB', '#FAAF3B', '#333333', '#979797']
 
@@ -184,8 +176,7 @@ if uploaded_file is not None:
         node_x.append(x)
         node_y.append(y)
         trend_data = calculate_trend(node, reviews)
-        trend_text = create_trend_text(trend_data)
-        hover_data.append(f"<b>{node}</b><br>Count: {G.nodes[node]['size']}<br>{G.nodes[node]['icon']}<br><pre>{trend_text}</pre>")
+        custom_data.append([node, G.nodes[node]['size'], G.nodes[node]['icon'], trend_data.to_dict('records')])
         node_size.append(G.nodes[node]['size'] * node_size_scale)
         sentiment = G.nodes[node]['sentiment']
         if sentiment > 0.1:
@@ -197,11 +188,8 @@ if uploaded_file is not None:
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
-        mode='markers+text',
-        textposition="bottom center",
-        hoverinfo='text',
-        text=hover_data,
-        hovertemplate='%{text}',
+        mode='markers',
+        hoverinfo='none',
         marker=dict(
             showscale=True,
             colorscale=accent_colors,
@@ -214,7 +202,18 @@ if uploaded_file is not None:
                 xanchor='left',
                 titleside='right'
             ),
-            line_width=2))
+            line_width=2
+        ),
+        customdata=custom_data,
+        hovertemplate="""
+        <b>Word: %{customdata[0]}</b><br>
+        Count: %{customdata[1]}<br>
+        Sentiment: %{customdata[2]}<br>
+        <b>Trend:</b><br>
+        %{customdata[3]}
+        <extra></extra>
+        """
+    )
 
     fig = go.Figure(data=[edge_trace, node_trace],
                     layout=go.Layout(
