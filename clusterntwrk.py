@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import networkx as nx
 import plotly.graph_objects as go
+import plotly.express as px
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from textblob import TextBlob
@@ -32,14 +33,14 @@ def sentiment_analysis(text):
     blob = TextBlob(text)
     return blob.sentiment.polarity
 
-# Function to determine sentiment icon
-def sentiment_icon(sentiment):
+# Function to determine sentiment type
+def sentiment_type(sentiment):
     if sentiment > 0.1:
-        return "😊"
+        return "Positive"
     elif sentiment < -0.1:
-        return "😞"
+        return "Negative"
     else:
-        return "😐"
+        return "Neutral"
 
 # Function to create a network graph
 @st.cache_data
@@ -74,7 +75,7 @@ def create_network_graph(reviews, keyword=None, min_occurrence=1):
         G.nodes[word]['size'] = word_counts[word]
         avg_sentiment = sum(word_sentiments[word]) / len(word_sentiments[word])
         G.nodes[word]['sentiment'] = avg_sentiment
-        G.nodes[word]['icon'] = sentiment_icon(avg_sentiment)
+        G.nodes[word]['sentiment_type'] = sentiment_type(avg_sentiment)
 
     return G
 
@@ -87,10 +88,19 @@ def filter_reviews_by_sentiment(reviews, sentiment):
     else:
         return reviews[(reviews['sentiment'] >= -0.1) & (reviews['sentiment'] <= 0.1)]
 
+# Function to calculate word frequency trend
+@st.cache_data
+def calculate_word_frequency_trend(reviews, word):
+    word_reviews = reviews[reviews['tokens'].apply(lambda x: word in x)]
+    trend_data = word_reviews.groupby('Date').size().reset_index(name='count')
+    trend_data['total'] = reviews.groupby('Date').size().reset_index(name='total')['total']
+    trend_data['frequency'] = trend_data['count'] / trend_data['total'] * 100
+    return trend_data
+
 # Streamlit UI
 st.title("Customer Reviews Network Graph")
 
-uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
 if uploaded_file is not None:
     @st.cache_data
@@ -103,11 +113,17 @@ if uploaded_file is not None:
 
     reviews = load_data(uploaded_file)
 
-    sentiment_filter = st.sidebar.selectbox("Select Sentiment", ["All", "Positive", "Negative", "Neutral"])
-    keyword_options = ["All"] + sorted(set(word for tokens in reviews['tokens'] for word in tokens if word.isalpha()))
-    keyword = st.sidebar.selectbox("Select Keyword", keyword_options)
-    node_size_scale = st.sidebar.slider("Adjust Node Size", min_value=1, max_value=20, value=10)
-    min_occurrence = st.sidebar.slider("Minimum Word Occurrence", min_value=1, max_value=20, value=1)
+    # Controls at the top
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        sentiment_filter = st.selectbox("Select Sentiment", ["All", "Positive", "Negative", "Neutral"])
+    with col2:
+        keyword_options = ["All"] + sorted(set(word for tokens in reviews['tokens'] for word in tokens if word.isalpha()))
+        keyword = st.selectbox("Select Keyword", keyword_options)
+    with col3:
+        node_size_scale = st.slider("Adjust Node Size", min_value=1, max_value=20, value=10)
+    with col4:
+        min_occurrence = st.slider("Minimum Word Occurrence", min_value=1, max_value=20, value=1)
 
     if sentiment_filter != "All":
         reviews = filter_reviews_by_sentiment(reviews, sentiment_filter)
@@ -132,7 +148,7 @@ if uploaded_file is not None:
         node_size.append(G.nodes[node]['size'] * node_size_scale)
         sentiment = G.nodes[node]['sentiment']
         node_color.append('green' if sentiment > 0.1 else 'red' if sentiment < -0.1 else 'gray')
-        node_text.append(f"Word: {node}<br>Count: {G.nodes[node]['size']}<br>Sentiment: {G.nodes[node]['icon']}")
+        node_text.append(f"Word: {node}<br>Count: {G.nodes[node]['size']}<br>Sentiment: {G.nodes[node]['sentiment_type']}")
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
@@ -157,7 +173,24 @@ if uploaded_file is not None:
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    # Use columns to create side-by-side layout
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Word Trend")
+        selected_word = st.selectbox("Select a word to view its trend", list(G.nodes()))
+        trend_data = calculate_word_frequency_trend(reviews, selected_word)
+        
+        # Create trend chart
+        trend_fig = px.line(trend_data, x='Date', y='frequency', title=f"Trend for '{selected_word}'")
+        trend_fig.update_layout(yaxis_title="Frequency (%)")
+        st.plotly_chart(trend_fig, use_container_width=True)
+
+        # Display trend data as a table
+        st.write(trend_data)
 
     # Sentiment distribution
     positive_reviews = reviews[reviews['sentiment'] > 0.1].shape[0]
