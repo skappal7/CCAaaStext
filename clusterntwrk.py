@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_plotly_events import plotly_events
 import pandas as pd
 import networkx as nx
 import plotly.graph_objects as go
@@ -45,7 +44,7 @@ def sentiment_type(sentiment):
 
 # Function to create a network graph
 @st.cache_data
-def create_network_graph(reviews, keyword=None, min_occurrence=1):
+def create_network_graph(reviews, keyword=None, min_occurrence=5):
     G = nx.Graph()
     word_counts = {}
     word_sentiments = {}
@@ -122,9 +121,9 @@ if uploaded_file is not None:
         keyword_options = ["All"] + sorted(set(word for tokens in reviews['tokens'] for word in tokens if word.isalpha()))
         keyword = st.selectbox("Select Keyword", keyword_options)
     with col3:
-        node_size_scale = st.slider("Adjust Node Size", min_value=1, max_value=20, value=10)
+        node_size_scale = st.slider("Adjust Node Size", min_value=1, max_value=20, value=1)
     with col4:
-        min_occurrence = st.slider("Minimum Word Occurrence", min_value=1, max_value=20, value=1)
+        min_occurrence = st.slider("Minimum Word Occurrence", min_value=5, max_value=20, value=5)
 
     if sentiment_filter != "All":
         reviews = filter_reviews_by_sentiment(reviews, sentiment_filter)
@@ -178,13 +177,21 @@ if uploaded_file is not None:
     col1, col2 = st.columns([2, 1])
 
     with col1:
-        selected_points = plotly_events(fig, click_event=True)
-        st.plotly_chart(fig, use_container_width=True)
+        selected_word = st.session_state.get('selected_word', None)
+        
+        fig.update_layout(clickmode='event+select')
+        config = {'displayModeBar': True, 'displaylogo': False}
+        plot = st.plotly_chart(fig, use_container_width=True, config=config)
+        
+        # Check for click events
+        clicked_point = plot.get_clicked_point()
+        if clicked_point:
+            selected_word = list(G.nodes())[clicked_point['pointIndex']]
+            st.session_state['selected_word'] = selected_word
 
     with col2:
         st.subheader("Word Trend")
-        if selected_points:
-            selected_word = list(G.nodes())[selected_points[0]['pointIndex']]
+        if selected_word:
             trend_data = calculate_word_frequency_trend(reviews, selected_word)
             
             # Create trend chart
