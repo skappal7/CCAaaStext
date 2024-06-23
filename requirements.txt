@@ -1,13 +1,4 @@
-streamlit==1.36.0
-pandas==2.2.2
-scattertext==0.2.1
-spacy==3.7.5
-pyLDAvis==3.4.1
-plotly==5.22.0
-wordcloud==1.9.3
-gensim==4.3.2
-textblob==0.18.0.post0
-networkx==3.3
-matplotlib==3.9.0
-numpy==1.24.3
-scipy==1.10.1
+streamlit
+pandas
+scattertext
+spacy
