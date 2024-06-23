@@ -39,11 +39,13 @@ def scattertext_visualization(text_data):
     st.write("Generating Scattertext visualization...")
     
     # Create a Scattertext corpus
-    corpus = stx.CorpusFromPandas(pd.DataFrame({"text": text_data}), category_col="text", text_col="text", nlp=nlp).build()
+    df = pd.DataFrame({"text": text_data})
+    df['parse'] = df['text'].apply(nlp)
+    corpus = stx.CorpusFromParsedDocuments(df, category_col='text', parsed_col='parse').build()
     
     # Create the Scattertext visualization
     html = stx.produce_scattertext_explorer(corpus, category='text', category_name='Text', not_category_name='None',
-                                            width_in_pixels=1000, metadata=text_data)
+                                            width_in_pixels=1000, metadata=df['text'])
     
     # Display the Scattertext visualization in Streamlit
     st.components.v1.html(html, width=1000, height=700, scrolling=True)
