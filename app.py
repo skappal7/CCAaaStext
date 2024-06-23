@@ -87,8 +87,7 @@ def lda_topic_modeling(df, text_column):
     corpus = [dictionary.doc2bow(text) for text in texts]
     lda_model = models.LdaModel(corpus, num_topics=5, id2word=dictionary, passes=15)
     lda_display = pyLDAvis.gensim_models.prepare(lda_model, corpus, dictionary, sort_topics=False)
-    pyLDAvis.display(lda_display)
-    st.write(lda_display)
+    st.write(pyLDAvis.display(lda_display))
 
 if __name__ == "__main__":
     main()
