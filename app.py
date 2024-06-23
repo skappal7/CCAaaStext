@@ -2,92 +2,51 @@ import streamlit as st
 import pandas as pd
 import scattertext as stx
 import spacy
-import pyLDAvis.gensim_models
-import plotly.express as px
-from wordcloud import WordCloud
-from gensim import corpora, models
-from textblob import TextBlob
-import networkx as nx
-import matplotlib.pyplot as plt
 
 # Load SpaCy model
 nlp = spacy.load('en_core_web_sm')
 
 def main():
-    st.title("Contact Center Interaction Analysis")
+    st.title("Scattertext Visualization App")
 
     st.markdown("""
-    This app visualizes the terms used in contact center interactions, 
-    differentiating between customer and agent text.
+    This app allows you to upload a CSV, Excel, or text file and visualize the text data using Scattertext.
     """)
 
-    uploaded_file = st.file_uploader("Upload your CSV or Excel file", type=["csv", "xlsx"])
+    uploaded_file = st.file_uploader("Upload your CSV, Excel, or text file", type=["csv", "xlsx", "txt"])
 
     if uploaded_file is not None:
         if uploaded_file.name.endswith('.csv'):
             df = pd.read_csv(uploaded_file)
-        else:
+        elif uploaded_file.name.endswith('.xlsx'):
             df = pd.read_excel(uploaded_file)
-
+        else:
+            df = pd.read_table(uploaded_file, header=None, names=["text"])
+        
         st.write("Data Preview:")
         st.write(df.head())
 
-        text_column = st.selectbox("Select the text column", df.columns)
+        if uploaded_file.name.endswith(('.csv', '.xlsx')):
+            text_column = st.selectbox("Select the text column", df.columns)
+            text_data = df[text_column]
+        else:
+            text_data = df["text"]
 
         if st.button("Analyze"):
-            perform_analysis(df, text_column)
+            scattertext_visualization(text_data)
 
-def perform_analysis(df, text_column):
-    st.write(f"Performing analysis on column: {text_column}")
+def scattertext_visualization(text_data):
+    st.write("Generating Scattertext visualization...")
     
-    # Sentiment Analysis
-    sentiment_analysis(df, text_column)
+    # Create a Scattertext corpus
+    corpus = stx.CorpusFromPandas(pd.DataFrame({"text": text_data}), category_col="text", text_col="text", nlp=nlp).build()
     
-    # Network Graph
-    network_graph(df, text_column)
+    # Create the Scattertext visualization
+    html = stx.produce_scattertext_explorer(corpus, category='text', category_name='Text', not_category_name='None',
+                                            width_in_pixels=1000, metadata=text_data)
     
-    # Word Cloud
-    create_wordcloud(df, text_column)
-    
-    # LDavis Topic Modeling
-    lda_topic_modeling(df, text_column)
-
-def sentiment_analysis(df, text_column):
-    st.subheader("Sentiment Analysis")
-    df['sentiment'] = df[text_column].apply(lambda x: TextBlob(x).sentiment.polarity)
-    fig = px.histogram(df, x='sentiment', nbins=50, title="Sentiment Polarity Distribution")
-    st.plotly_chart(fig)
-
-def network_graph(df, text_column):
-    st.subheader("Network Graph")
-    docs = [nlp(text) for text in df[text_column]]
-    edges = []
-    for doc in docs:
-        for token in doc:
-            for child in token.children:
-                edges.append((token.text, child.text))
-    graph = nx.Graph(edges)
-    plt.figure(figsize=(10, 10))
-    nx.draw(graph, with_labels=True, node_size=20, font_size=10)
-    st.pyplot(plt)
-
-def create_wordcloud(df, text_column):
-    st.subheader("Word Cloud")
-    text = " ".join(review for review in df[text_column])
-    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.imshow(wordcloud, interpolation='bilinear')
-    ax.axis('off')
-    st.pyplot(fig)
-
-def lda_topic_modeling(df, text_column):
-    st.subheader("Topic Modeling")
-    texts = df[text_column].apply(lambda x: [token.lemma_ for token in nlp(x) if not token.is_stop and token.is_alpha])
-    dictionary = corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    lda_model = models.LdaModel(corpus, num_topics=5, id2word=dictionary, passes=15)
-    lda_display = pyLDAvis.gensim_models.prepare(lda_model, corpus, dictionary, sort_topics=False)
-    st.write(pyLDAvis.display(lda_display))
+    # Display the Scattertext visualization in Streamlit
+    st.components.v1.html(html, width=1000, height=700, scrolling=True)
 
 if __name__ == "__main__":
     main()
