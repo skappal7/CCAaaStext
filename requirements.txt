@@ -1,7 +1,11 @@
 streamlit
 pandas
-textblob
-scikit-learn
-networkx
+scattertext
+spacy
+pyLDAvis
 plotly
-streamlit-plotly-events
+wordcloud
+gensim
+textblob
+networkx
+matplotlib
